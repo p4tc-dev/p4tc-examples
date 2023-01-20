@@ -1,0 +1,85 @@
+{
+    "schema_version" : "1.0.0",
+    "pipeline_name" : "calc",
+    "tables" : [
+        {
+            "name" : "MyIngress/calculate",
+            "id" : 1,
+            "tentries" : 2048,
+            "nummask" : 8,
+            "keysize" :8,
+            "keyid" :1,
+            "keyfields" : [
+                {
+                    "id" : 1,
+                    "name" : "op",
+                    "type" : "bit8",
+                    "match_type" : "exact",
+                    "bitwidth" : 8
+                }
+            ],
+            "actions" : [
+                {
+                    "id" : 1,
+                    "name" : "MyIngress.operation_add",
+                    "action_scope" : "Table",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                },
+                {
+                    "id" : 2,
+                    "name" : "MyIngress.operation_sub",
+                    "action_scope" : "Table",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                },
+                {
+                    "id" : 3,
+                    "name" : "MyIngress.operation_and",
+                    "action_scope" : "Table",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                },
+                {
+                    "id" : 4,
+                    "name" : "MyIngress.operation_or",
+                    "action_scope" : "Table",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                },
+                {
+                    "id" : 5,
+                    "name" : "MyIngress.operation_xor",
+                    "action_scope" : "Table",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                },
+                {
+                    "id" : 6,
+                    "name" : "MyIngress.send_back",
+                    "action_scope" : "Table",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : [
+			    {
+				    "id": 1,
+				    "name": "result",
+				    "bitwidth": 32
+			    }
+		    ]
+                }
+            ]
+        }
+    ]
+}

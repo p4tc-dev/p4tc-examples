@@ -1,0 +1,51 @@
+#
+#Requires 4 terminals
+#three terminals inside the container
+#one outside
+#to enter the container p4node type
+sudo ip netns exec p4node /bin/bash
+
+#just standard TC
+container prompt1 > TC="/usr/sbin/tc"
+#run TC monitor
+container prompt1 > $TC mon
+
+#From terminal 2 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+DEV=port0
+sudo tcpdump -n -i $DEV
+
+#From terminal 3 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+#Inside the container 3 prompt
+#------------------------------
+container prompt2> cd examples/simple_l3_pna
+#run the parser script:
+./simple_l3_pna.parser
+
+#run the template script - watch for tc mon to see things happening
+./simple_l3_pna.template
+
+#run the runtime script (again watch tc mon)
+./simple_l3_pna.runtime
+
+The next steps are tested with the traffic being generated at
+the VM (see terminal 4 below)
+
+Step 1: No entry, send a ping from VM side and see it dropped
+This exercises the default miss action..
+
+step 2:
+$TC p4runtime create simple_l3_pna/table/MainControlImpl/l3_match_rx  \
+ dstAddr 10.0.1.2/32 prio 10 action simple_l3_pna/MainControlImpl/send param port type dev port1
+
+#dump the table to check..
+$TC p4runtime get simple_l3_pna/table/MainControlImpl/l3_match_rx
+
+#dump the table and show counters for the actions to check..
+$TC -s p4runtime get simple_l3_pna/table/MainControlImpl/l3_match_rx
+
+#Outside on the VM from terminal 4
+#---------------------------------
+
+ping -I p4port0 10.0.1.2 -c 1

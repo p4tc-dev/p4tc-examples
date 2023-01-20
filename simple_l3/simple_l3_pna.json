@@ -1,0 +1,56 @@
+{
+    "schema_version" : "1.0.0",
+    "pipeline_name" : "simple_l3_pna",
+    "tables" : [
+        {
+            "name" : "MainControlImpl/l3_match_rx",
+            "id" : 1,
+            "//tcomment" : "tentries and nummask are template defined, so remove from here",
+            "tentries" : 2048,
+            "nummask" : 8,
+            "keysize" :32,
+            "keyid" :1,
+            "keyfields" : [
+                {
+                    "id" : 1,
+                    "name" : "dstAddr",
+    		    "//keycomment3": "exact is only for verification. Reject things like /24",
+                    "match_type" : "exact",
+		    "type": "ipv4",
+                    "bitwidth" : 32
+                }
+            ],
+            "actions" : [
+                {
+                    "id" : 1,
+                    "name" : "MainControlImpl.send",
+                    "//comment_scope" : "Template-defined but may be useful",
+                    "action_scope" : "TableAndDefault",
+                    "//comment_x_action" : "Template-defined but may be useful",
+                    "default_hit_action" : false,
+                    "default_miss_action" : false,
+                    "annotations" : [],
+                    "params" : [
+                        {
+                            "id" : 1,
+                            "name" : "port",
+                            "read_only" : false,
+                            "annotations" : [],
+			    "//comment_type" : "could we have a type ex dev ",
+                            "bitwidth" : 32
+                        }
+                    ]
+                },
+                {
+                    "id" : 2,
+                    "name" : "MainControlImpl.drop",
+                    "action_scope" : "TableAndDefault",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,57 @@
+#
+#Requires 4 terminals
+#
+#three terminals inside the container
+#one outside
+#
+# terminal 1
+# ##########
+#to enter the container "p4node", type
+sudo ip netns exec p4node /bin/bash
+#
+#observe the logs here..
+container prompt1 > dmesg -wH
+#
+# terminal 2
+# ###########
+#From terminal 2 get another root prompt in the container and start the tc monitor:
+sudo ip netns exec p4node /bin/bash
+tc mon
+#
+#From terminal 3 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+#
+#Inside terminal 3
+#------------------
+container prompt2> cd examples/stateful2
+#run the parser script:
+./stateful2.parser
+
+#run the template script - watch for tc mon to see things happening here..
+./stateful2.template
+
+#run the runtime script (again watch tc mon)
+./stateful2.runtime
+
+# terminal 4
+# ##########
+#Outside on the VM from terminal 4 To send test traffic
+#--------------------------------------------------------
+For the tests here, observe the monitors in terminal 2 and 1
+#lets send one single tcp packet..
+cd to ~/sendpacket
+sudo ./sendpacket.py yaml/pkt_ipv4_01-tcp.yaml -i p4port0 -s --debug
+#
+#watch the monitor terminals in terminal 2 and terminal 1
+#
+# on terminal 3 dump the table to check..
+tc  p4runtime get stateful2/table/MainControlImpl/ct_tcp_table
+Or if you want to see the dump in json format:
+tc -j p4runtime get stateful2/table/MainControlImpl/ct_tcp_table | jq .
+
+Now lets do something more dramatic with netperf CRR (which opens and closes connections)
+On terminal 3, start the server:
+netserver 
+on terminal 4, start sending
+netperf -s 5 -H 10.0.0.2 -t TCP_CRR
+

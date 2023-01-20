@@ -1,0 +1,42 @@
+
+#
+#Requires 3 terminals
+#enter the container p4node
+sudo ip netns exec p4node /bin/bash
+
+cd examples/calc
+
+#just standard TC
+TC="/usr/sbin/tc"
+
+#run TC monitor
+$TC mon
+
+#From terminal 2 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+
+#Inside the container
+#---------------------
+#run the parser script:
+./calc.parser
+
+#run the template script - watch for tc mon to see things happening
+#If it fails it will bail out..
+./calc.template
+
+#run the runtime script (again watch tc mon)
+./calc.runtime
+
+DEV=port0
+sudo tcpdump -n -i $DEV
+
+#Outside on the VM from terminal 3
+#------------------
+#run the python program
+sudo python3 ./calc.py
+
+#enter an arithmetic command, example:
+#>1+1
+#watch tcpdump on the container and the program progress on the vm side..
+#>2-1
+#will fail and default action will be executed because we have commented out subtract

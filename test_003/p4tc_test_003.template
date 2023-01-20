@@ -1,0 +1,97 @@
+#!/bin/bash -x
+
+TC="tc"
+set -e
+
+# Create pipeline p4tc_test_003 - In this case we dont have any tables
+$TC p4template create pipeline/p4tc_test_003 numtables 0
+
+#########################
+# Defining Header Fields#
+#########################
+# Create header field object from ipv4 destination address
+# Note the "parser1" was declared earlier in the parser script
+# these header are defined in the parser script. Their IDs map to
+# "md-off" field in the parser definition using formula of:
+# headerid = md-off/2 + 1
+#ipproto, srcaddr and dstaddr are only output here for debug
+$TC p4template create hdrfield/p4tc_test_003/parser1/ipv4/ipproto hdrfieldid 2  type bit8
+$TC p4template create hdrfield/p4tc_test_003/parser1/ipv4/srcAddr hdrfieldid 3  type ipv4
+$TC p4template create hdrfield/p4tc_test_003/parser1/ipv4/dstAddr hdrfieldid 4  type ipv4
+$TC p4template create hdrfield/p4tc_test_003/parser1/udp/sport hdrfieldid 5  type be16
+$TC p4template create hdrfield/p4tc_test_003/parser1/udp/dport hdrfieldid 6  type be16
+#not needed
+$TC p4template create hdrfield/p4tc_test_003/parser1/ipv4/isValid hdrfieldid 7 type bit1
+#not needed
+$TC p4template create hdrfield/p4tc_test_003/parser1/udp/isValid hdrfieldid 8 type bit1
+
+####################
+# Defining Metadata#
+####################
+#
+#Do we need to create some metadata?
+$TC p4template create metadata/p4tc_test_003/global/passcnt mid 1 type bit8
+#
+####################################
+# Create Actions + defined Externs #
+####################################
+
+# this action is temporary. Its purpose is to return "reclassify" to the pipeline. In the future
+# we should introduce a command "return" which will return various verdict codes.
+$TC actions add action reclassify index 1
+##################
+#   Tables
+#######################
+#we dont have any tables..
+#
+##########################################
+# Define pipeline pre/post infrastructure#
+##########################################
+
+# Define pipeline preaction PPREA
+##################################
+#
+#   if (hdr.udp.isValid() && (bit<8>)(PassNumberUint_t)istd.pass <= 8w0x4) {
+#        hdr.udp.src_port = hdr.udp.src_port + 1;
+#        recirculate();
+#    }
+#
+
+$TC p4template create action/p4tc_test_003/PPREA \
+ cmd print prefix PPAREAcnt metadata.p4tc_test_003.global/passcnt \
+ cmd print prefix PPAREAsaddr hdrfield.p4tc_test_003.parser1.ipv4.ipproto \
+ cmd print prefix PPAREAsaddr hdrfield.p4tc_test_003.parser1.ipv4.srcAddr \
+ cmd print prefix PPAREAdaddr hdrfield.p4tc_test_003.parser1.ipv4.dstAddr \
+ cmd print prefix sportbefore hdrfield.p4tc_test_003.parser1.udp.sport \
+ cmd print prefix sportbefore hdrfield.p4tc_test_003.parser1.udp.dport \
+ cmd print prefix sportbefore-cnt metadata.p4tc_test_003.global/passcnt \
+ cmd plus metadata.p4tc_test_003.global/passcnt metadata.p4tc_test_003.global/passcnt constant.bit8.1 \
+ cmd beq hdrfield.p4tc_test_003.parser1.udp.isValid constant.bit1.1 control pipe / jump endif \
+ cmd ble metadata.p4tc_test_003.global/passcnt constant.bit8.4 control pipe / jump endif \
+ cmd plus hdrfield.p4tc_test_003.parser1.udp.sport hdrfield.p4tc_test_003.parser1.udp.sport constant.be16.0x1 \
+ cmd print prefix sportafter hdrfield.p4tc_test_003.parser1.udp.sport \
+ cmd act kernel.gact.1 \
+ cmd label endif \
+ cmd print prefix PPAREAInvalid hdrfield.p4tc_test_003.parser1.udp.isValid
+
+#activate action
+$TC p4template update action/p4tc_test_003/PPREA state active
+
+#bind
+$TC p4template update pipeline/p4tc_test_003 preactions action p4tc_test_003/PPREA
+
+# Define pipeline postaction PPOA
+##################################
+#Naming convention for pipeline postaction is PPOA
+
+############### Pipeline Postactions ###########################
+$TC p4template create action/p4tc_test_003/PPOA  \
+ cmd print prefix PPOAsaddr hdrfield.p4tc_test_003.parser1.ipv4.srcAddr \
+ cmd print prefix PPOAsport hdrfield.p4tc_test_003.parser1.udp.sport
+
+$TC p4template update action/p4tc_test_003/PPOA state active
+
+$TC p4template update pipeline/p4tc_test_003 postactions action p4tc_test_003/PPOA
+
+# Seal pipeline
+$TC p4template update pipeline/p4tc_test_003 state ready

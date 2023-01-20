@@ -1,0 +1,83 @@
+#!/bin/bash
+#
+#parser for Ethernet and IPv4
+#
+die()
+{
+	echo "error:$1"
+	exit -1
+}
+
+IP="ip"
+
+ipcmd() {
+# -j -p enables formatted json print in stdout
+	echo "Executing \`$IP -j -p $@\`" | fold -w 80
+	$IP -j -p "$@" || die "command \`$@\` failed."
+	echo "---------------------------------------------------------------"
+}
+
+#Lookup table creation for checking next nodes
+ipcmd parser create table name table.ip
+ipcmd parser create table name table.ether
+
+#Extraction definition per header. Values (addoff local offsets)
+#Note headerid is computed as follows:
+#  md-off/2 + 1.
+# example ipproto is 2/1+1 == 2; srcaddr is 4/2 + 1 = 3 and dstaddr 3+1
+ipcmd parser create metadata-rule name md.ipv4.ttl	\
+		type bit-offset			   	\
+		md-off 0			        \
+		addoff 64
+
+ipcmd parser create metadata-rule name md.ipv4.ipproto_offset	\
+		type bit-offset			            \
+		md-off 2			                \
+		addoff 72
+
+ipcmd parser create metadata-rule name md.ipv4.src_address_offset	\
+		type bit-offset			                \
+		addoff 96			                \
+		md-off 4
+ipcmd parser create metadata-rule name md.ipv4.dst_address_offset	\
+		type bit-offset			         \
+		addoff 128			         \
+		md-off 6
+
+ipcmd parser create metadata-rule name md.ipv4.isValid	\
+		type constant-halfword		      \
+		md-off 12				\
+		constantvalue 1
+
+
+# Creates a metalist object to be associated with a parse node. 
+ipcmd parser create metalist name mdl.ipv4	\
+		md.rule md.ipv4.dst_address_offset	\
+		md.rule md.ipv4.src_address_offset	\
+		md.rule md.ipv4.ttl              	\
+		md.rule md.ipv4.ipproto_offset          \
+		md.rule md.ipv4.isValid
+
+# Creates a parse nodes. Contains header size and how to calculate next header
+ipcmd parser create node name node.ether	\
+		min-hdr-length 14		\
+		nxt.field-off 12		\
+		nxt.field-len 2			\
+		nxt.table table.ether
+
+ipcmd parser create node name node.ipv4		\
+		min-hdr-length 20 		\
+		nxt.field-off 9			\
+		nxt.field-len 1			\
+		nxt.table table.ip		\
+		metalist mdl.ipv4
+
+# Populate lookup tables.
+ipcmd parser create table/table.ether	\
+		key 0x800		\
+		node node.ipv4
+
+# Creates a parser object and specifies starting node
+ipcmd parser create parser name parser1 id 1	\
+		metametasize 10			\
+		rootnode node.ether

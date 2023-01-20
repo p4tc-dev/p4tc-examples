@@ -1,0 +1,20 @@
+#!/bin/bash -x
+
+TC="tc"
+
+set -e
+
+DEV=port0
+
+#$TC qdisc del dev $DEV clsact
+#$TC qdisc del dev $DEV root
+#$TC p4runtime del stateful2/table/MainControlImpl/ct_tcp_table
+#$TC p4template del pipeline/stateful2
+$TC qdisc add dev $DEV clsact
+
+# Create p4 filter and attach it to ingress
+$TC filter add dev $DEV ingress protocol ip prio 6 p4  pname stateful2 action ok
+#attach to egress
+$TC filter add dev $DEV egress protocol ip prio 6 p4  pname stateful2 action ok
+
+$TC  p4runtime get stateful2/table/MainControlImpl/ct_tcp_table

@@ -1,0 +1,68 @@
+{
+    "schema_version" : "1.0.0",
+    "pipeline_name" : "p4tc_test_002.p4",
+    "tables" : [
+        {
+            "name" : "MainControlImpl/ipv4_tbl",
+            "id" : 1,
+            "//tcomment" : "tentries and nummask are template defined",
+            "tentries" : 2048,
+            "nummask" : 8,
+            "keysize" :72,
+            "keyid" :1,
+            "keyfields" : [
+                {
+                    "id" : 1,
+                    "name" : "dstAddr",
+    		    "//keycomment3": "exact is only for verification. Reject things like /24",
+                    "match_type" : "exact",
+		    "type": "ipv4",
+                    "bitwidth" : 32
+                },
+                {
+                    "id" : 2,
+                    "name" : "srcAddr",
+                    "match_type" : "exact",
+		    "type": "ipv4",
+                    "bitwidth" : 32
+                },
+                {
+                    "id" : 3,
+                    "name" : "ipproto",
+                    "match_type" : "exact",
+		    "type": "bit8",
+                    "bitwidth" : 8
+                }
+            ],
+            "actions" : [
+                {
+                    "id" : 1,
+                    "name" : "MainControlImpl.next_hop",
+                    "action_scope" : "TableAndDefault",
+                    "default_hit_action" : false,
+                    "default_miss_action" : false,
+                    "annotations" : [],
+                    "params" : [
+                        {
+                            "id" : 1,
+                            "name" : "port",
+                            "read_only" : false,
+                            "annotations" : [],
+			    "//comment_type" : "could we have a type ex dev ",
+                            "bitwidth" : 32
+                        }
+                    ]
+                },
+                {
+                    "id" : 2,
+                    "name" : "MainControlImpl.default_route_drop",
+                    "action_scope" : "TableAndDefault",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,56 @@
+#
+#Requires 4 terminals
+#three terminals inside the container
+#one outside
+#to enter the container p4node type
+sudo ip netns exec p4node /bin/bash
+
+#observe the logs here..
+container prompt1 > dmesg -wH
+
+#From terminal 2 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+sudo tcpdump -n -i port0
+
+#From terminal 3 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+#Inside the container 3 prompt
+#------------------------------
+container prompt2> cd examples/p4tc_test_002
+#run the parser script:
+./p4tc_test_002.parser
+
+#run the template script - watch for tc mon to see things happening
+./p4tc_test_002.template
+
+#Alternatively you could run  ./p4tc_test_002-defaulthit.template
+#which has an extra debug action for default hit.
+#default hit is executed when we have a match but the match entry has no
+#action defined. See step #2 below
+
+#run the runtime script (again watch tc mon)
+./p4tc_test_002.runtime
+
+#add a match entry that will send packets out next_hop port1
+$TC p4runtime create  p4tc_test_002/table/MainControlImpl/ipv4_tbl \
+dstAddr 10.99.0.1/32 srcAddr 10.0.0.102/32 ipproto 17 prio 2 \
+action p4tc_test_002/MainControlImpl/next_hop param port type dev port1
+
+#dump the table to check..
+$TC p4runtime get p4tc_test_002/table/MainControlImpl/ipv4_tbl
+
+Or if you want to see the dump in json format:
+$TC -j p4runtime get p4tc_test_002/table/MainControlImpl/ipv4_tbl | jq .
+
+start tcpdump on this terminal on port1
+
+tcpdump -n -i port1
+
+#Outside on the VM from terminal 4 To send test traffic
+#--------------------------------------------------------
+
+cd to ~/sendpacket
+sudo ./sendpacket.py yaml/pkt_ipv4_01.yaml -i p4port0 -s --debug
+
+Watch tcpdump on terminal 1 and 3
+watch dmesg out on terminal 2

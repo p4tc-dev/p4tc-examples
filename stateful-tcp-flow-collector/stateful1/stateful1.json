@@ -1,0 +1,62 @@
+{
+    "schema_version" : "1.0.0",
+    "pipeline_name" : "stateful1",
+    "tables" : [
+        {
+            "name" : "MainControlImpl/ct_tcp_table",
+            "id" : 1,
+            "tentries" : 2048,
+            "nummask" : 8,
+            "keysize" : 104,
+            "keyid" :1,
+            "keyfields" : [
+                {
+                    "id" : 1,
+                    "name" : "ipv4_addr_0",
+                    "match_type" : "exact",
+		    "type": "ipv4",
+                    "bitwidth" : 32
+                },
+                {
+                    "id" : 2,
+                    "name" : "ipv4_addr_1",
+                    "match_type" : "exact",
+		    "type": "ipv4",
+                    "bitwidth" : 32
+                },
+                {
+                    "id" : 3,
+                    "name" : "proto",
+                    "match_type" : "exact",
+		    "type": "bit8",
+                    "bitwidth" : 8
+                },
+                {
+                    "id" : 4,
+                    "name" : "tcp_port_0",
+                    "match_type" : "exact",
+		    "type": "be16",
+                    "bitwidth" : 16
+                },
+                {
+                    "id" : 5,
+                    "name" : "tcp_port_1",
+                    "match_type" : "exact",
+		    "type": "be16",
+                    "bitwidth" : 16
+                }
+            ],
+            "actions" : [
+                {
+                    "id" : 1,
+                    "name" : "ct_tcp_default_miss",
+                    "action_scope" : "Default",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : ["defaultonly"],
+                    "params" : []
+                }
+            ]
+        }
+    ]
+}

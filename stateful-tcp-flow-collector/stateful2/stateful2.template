@@ -1,0 +1,162 @@
+#!/bin/bash -x
+
+TC="tc"
+set -e
+
+$TC p4template create pipeline/stateful2 numtables 1
+
+#########################
+# Defining Header Fields#
+#########################
+# Create header field object from ipv4 destination address
+# Note the "parser1" was declared earlier in the parser script
+$TC p4template create hdrfield/stateful2/parser1/ipv4/proto hdrfieldid 2 type bit8
+$TC p4template create hdrfield/stateful2/parser1/ipv4/srcAddr hdrfieldid 3 type ipv4
+$TC p4template create hdrfield/stateful2/parser1/ipv4/dstAddr hdrfieldid 4 type ipv4
+$TC p4template create hdrfield/stateful2/parser1/ipv4/isValid hdrfieldid 7 type bit1
+$TC p4template create hdrfield/stateful2/parser1/tcp/srcPort hdrfieldid 5 type be16
+$TC p4template create hdrfield/stateful2/parser1/tcp/dstPort hdrfieldid 6 type be16
+$TC p4template create hdrfield/stateful2/parser1/tcp/isValid hdrfieldid 8 type bit1
+
+
+####################
+# Defining Metadata#
+####################
+echo "creating metadata"
+sleep 1
+#Metadata for do_add_on_miss
+#for now, eventually this will be kernel specific
+$TC p4template create metadata/stateful2/do_add_on_miss type bit1
+$TC p4template create metadata/stateful2/direction type bit8
+
+echo "dumping metadata"
+$TC p4template get metadata/stateful2
+
+####################################
+# Create Actions + defined Externs #
+####################################
+echo "Creating Actions and externs.."
+sleep 1
+#note this means our extern for add_entry just sets do_add_on_miss
+#so it is inlined here to just set it..
+$TC p4template create action/stateful2/ct_tcp_default_miss actid 1 \
+    cmd print prefix default_miss: metadata.stateful2.do_add_on_miss \
+    cmd set metadata.stateful2.do_add_on_miss constant.bit1.1
+
+# activate
+$TC p4template update action/stateful2/ct_tcp_default_miss state active
+
+################## Tables ###############################
+
+#########################################################
+# Declare table "ct_tcp_table" and associated infrastructure
+#########################################################
+
+$TC p4template create table/stateful2/MainControlImpl/ct_tcp_table \
+	tblid 1 keysz 112 nummasks 8 tentries 2048 permissions 0x3FF
+
+# Table "ct_tcp_table" preaction T_ct_tcp_table_PRA
+##################################################
+# Create code that will process the key for table ct_tcp_table
+# chosen naming convenction for this action is T_<Table name>_PRA
+# note: right now, the only thing we are doing in table preaction is
+#       key selection
+# in this example we are looking at metadata.kernel.direction for decisions
+# current semantics of direction are:
+# 0 means INGRESS (NET_TO_HOST) and 1 means EGRESS (HOST_TO_NET)
+#
+$TC p4template create action/stateful2/ct_tcp_table/T_ct_tcp_table_PRA \
+	cmd print prefix T_ct_tcp_table_PRA hdrfield.stateful2.parser1.ipv4.dstAddr \
+        cmd set metadata.stateful2.direction metadata.kernel.direction \
+	cmd beq metadata.kernel.direction constant.bit1.0 control pipe / jump else \
+        cmd concat key.stateful2.MainControlImpl/ct_tcp_table metadata.stateful2.direction \
+	hdrfield.stateful2.parser1.ipv4.srcAddr \
+	hdrfield.stateful2.parser1.ipv4.dstAddr hdrfield.stateful2.parser1.ipv4.proto \
+	hdrfield.stateful2.parser1.tcp.srcPort hdrfield.stateful2.parser1.tcp.dstPort \
+	cmd jump endif \
+	cmd label else \
+        cmd concat key.stateful2.MainControlImpl/ct_tcp_table metadata.stateful2.direction \
+	hdrfield.stateful2.parser1.ipv4.srcAddr \
+	hdrfield.stateful2.parser1.ipv4.dstAddr hdrfield.stateful2.parser1.ipv4.proto \
+	hdrfield.stateful2.parser1.tcp.srcPort hdrfield.stateful2.parser1.tcp.dstPort \
+	cmd label endif \
+	cmd print key.stateful2.MainControlImpl/ct_tcp_table
+
+#Activate
+$TC p4template update action/stateful2/ct_tcp_table/T_ct_tcp_table_PRA state active
+
+#bind the key action to the table "ct_tcp_table" for creation
+$TC p4template update table/stateful2/MainControlImpl/ct_tcp_table \
+	key action stateful2/ct_tcp_table/T_ct_tcp_table_PRA
+
+# Table "ct_tcp_table" postaction T_ct_tcp_table_POA
+##################################################
+#naming convention is T_<Table Name>_POA
+#
+# note for this case it is not needed but we will create it here
+# because current code expects it.. We are using it here for debug
+# XXX: code needs fixing..
+
+$TC p4template create action/stateful2/ct_tcp_table/T_ct_tcp_table_POA \
+	cmd print prefix T_ct_tcp_table_POA_res results.hit \
+	cmd print prefix T_ct_tcp_table_POA hdrfield.stateful2.parser1.ipv4.dstAddr
+
+$TC p4template update action/stateful2/ct_tcp_table/T_ct_tcp_table_POA state active
+
+$TC p4template update table/stateful2/MainControlImpl/ct_tcp_table postactions \
+    action stateful2/ct_tcp_table/T_ct_tcp_table_POA
+
+# Table "ct_tcp_table" miss default action T_ct_tcp_table_miss
+############################################################
+# Create default miss action which happens to be a const
+# Naming: T_<Table name>_miss if we have to create from scratch
+$TC p4template update table/stateful2/MainControlImpl/ct_tcp_table \
+    default_miss_action permissions 0x109 action stateful2/ct_tcp_default_miss
+
+#
+##########################################
+# Define pipeline pre/post infrastructure#
+##########################################
+
+# Define pipeline preaction PPREA
+##################################
+
+# if (hdrs.ipv4.isValid() && hdr.tcp.isValid()) {
+#    ct_tcp_table.apply();
+# }
+
+$TC p4template create action/stateful2/PPREA \
+ cmd print prefix PPREA metadata.kernel.direction \
+ cmd print prefix PPREA hdrfield.stateful2.parser1.ipv4.isValid \
+ cmd beq hdrfield.stateful2.parser1.ipv4.isValid constant.bit1.1 \
+         control pipe / jump endif \
+ cmd beq hdrfield.stateful2.parser1.tcp.isValid constant.bit1.1 \
+         control pipe / jump endif \
+ cmd tableapply table.stateful2.MainControlImpl/ct_tcp_table \
+ cmd label endif
+
+#activate action
+$TC p4template update action/stateful2/PPREA state active
+
+#bind
+$TC p4template update pipeline/stateful2 preactions action stateful2/PPREA
+
+# Define pipeline postaction PPOA
+##################################
+#Naming convention for pipeline postaction is PPOA
+
+############### Pipeline Postactions ###########################
+# our add entry essentially just sets do_add_on_miss to true
+# and this is where we set it
+$TC p4template create action/stateful2/PPOA  \
+    cmd print prefix PPOAport metadata.stateful2.do_add_on_miss \
+    cmd beq metadata.stateful2.do_add_on_miss constant.bit1.1 control pipe / jump 1 \
+    cmd tablectrl create table.stateful2.MainControlImpl/ct_tcp_table \
+    cmd print prefix test metadata.stateful2.do_add_on_miss
+
+$TC p4template update action/stateful2/PPOA state active
+
+$TC p4template update pipeline/stateful2 postactions action stateful2/PPOA
+
+# Seal pipeline
+$TC p4template update pipeline/stateful2 state ready

@@ -1,0 +1,14 @@
+#!/bin/bash -x
+
+TC="tc"
+
+set -e
+
+DEV=port0
+
+#$TC action del action gact index 1
+#$TC qdisc del dev $DEV clsact
+$TC qdisc add dev $DEV clsact
+
+# Create p4 filter and attach it to ingress
+$TC filter add dev $DEV ingress protocol ip prio 6 p4 pname p4tc_test_003

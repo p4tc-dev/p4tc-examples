@@ -1,0 +1,32 @@
+#!/bin/bash -x
+#Execute until failure flag
+#set -e
+
+export INTROSPECTION=/etc/iproute2/introspection
+
+TC="/usr/sbin/tc"
+echo "dump table calculate .."
+$TC p4runtime get calc/table/MyIngress/calculate
+#sleep 1
+#echo "trying to add runtime table entry, should fail"
+#$TC p4runtime create \
+#calc/table/MyIngress/calculate \
+#op 0x2b \
+#action calc/MyIngress/operation_add
+
+echo "instantiating pipeline..."
+sleep 1
+DEV=port0
+#$TC qdisc del dev $DEV clsact
+$TC qdisc add dev $DEV clsact
+$TC filter add dev $DEV ingress protocol 0x1234 prio 6 p4  pname calc action ok
+#$TC filter add dev lo egress protocol 0x1234 prio 6 p4  pname calc action ok
+
+#check if the filter is being hit..
+#$TC actions ls action gact
+
+#start tcpdump on $DEV
+#sudo tcpdump -n -i $DEV
+#start the python script which will send and wait for a packet to come back..
+#sudo python3 calc.py
+# you will get a prompt, enter a mathematical equation, example:

@@ -1,0 +1,43 @@
+#
+#Requires 4 terminals
+#three terminals inside the container
+#one outside
+#to enter the container p4node type
+sudo ip netns exec p4node /bin/bash
+
+#observe the logs here..
+container prompt1 > dmesg -wH
+
+#From terminal 2 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+sudo tcpdump -n -i port0
+
+#From terminal 3 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+#Inside the container 3 prompt
+#------------------------------
+container prompt2> cd examples/p4tc_test_003
+#run the parser script:
+./p4tc_test_003.parser
+
+#run the template script - watch for tc mon to see things happening
+./p4tc_test_003.template
+
+#run the runtime script (again watch tc mon)
+./p4tc_test_003.runtime
+
+start tcpdump on this terminal on port1
+
+tcpdump -n -i port1
+
+#Outside on the VM from terminal 4 To send test traffic
+#--------------------------------------------------------
+
+cd to ~/sendpacket
+sudo ./sendpacket.py yaml/pkt_ipv4_01.yaml -i p4port0 -s --debug
+
+Watch tcpdump on terminal 1 and 3
+watch dmesg out on terminal 2
+
+We expect to see on port0 a UDP packet with sport 1235 and dstport 4321 and
+on port1 (after the transformation) sport 1235 dstport 4321+4 = 4325

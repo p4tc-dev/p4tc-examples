@@ -1,0 +1,17 @@
+#!/bin/bash -x
+
+TC="tc"
+
+set -e
+
+DEV=port0
+
+#$TC qdisc del dev $DEV clsact
+$TC qdisc add dev $DEV clsact
+
+# Create p4 filter and attach it to ingress
+$TC filter add dev $DEV ingress protocol ip prio 6 p4  pname simple_l3_pna action ok
+
+#simple test for drop rule
+#$TC p4runtime create  simple_l3_pna/table/MainControlImpl/l3_match_rx \
+#   dstAddr 127.0.0.9/32 prio 17

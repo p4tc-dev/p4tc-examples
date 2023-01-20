@@ -1,0 +1,248 @@
+#!/bin/bash -x
+#Execute until failure flag
+set -e
+
+TC="tc"
+
+# Create pipeline  "calc"
+#XXX: Try removing pre/postactions
+$TC p4template create pipeline/calc numtables 1
+
+########################
+# Create header Fields #
+########################
+
+# Create header field objects from parser
+$TC p4template create hdrfield/calc/calc_parser/ethernet/dstAddr hdrfieldid 1 type macaddr
+$TC p4template create hdrfield/calc/calc_parser/ethernet/srcAddr hdrfieldid 2 type macaddr
+$TC p4template create hdrfield/calc/calc_parser/ethernet/etherType hdrfieldid 3 type be16
+$TC p4template create hdrfield/calc/calc_parser/calc/p hdrfieldid 4 type bit8
+$TC p4template create hdrfield/calc/calc_parser/calc/four hdrfieldid 5 type bit8
+$TC p4template create hdrfield/calc/calc_parser/calc/ver hdrfieldid 6 type bit8
+$TC p4template create hdrfield/calc/calc_parser/calc/op hdrfieldid 7 type bit8
+$TC p4template create hdrfield/calc/calc_parser/calc/operand_a hdrfieldid 8 type be32
+$TC p4template create hdrfield/calc/calc_parser/calc/operand_b hdrfieldid 9 type be32
+$TC p4template create hdrfield/calc/calc_parser/calc/res hdrfieldid 10 type be32
+$TC p4template create hdrfield/calc/calc_parser/calc/isValid hdrfieldid 11 type bit1
+echo "dumping header fields"
+sleep 1
+$TC p4template get hdrfield/calc/calc_parser
+
+###################
+# Create metadata #
+###################
+
+echo "creating metadata"
+#All the following metadata appear as one struct and can be as input to an action.
+$TC p4template create metadata/calc/global/drop mid 5 type bit1
+#Metadata for result. This will hold the result of any operation 
+$TC p4template create metadata/calc/result mid 3 type be32
+#Metadata for swapping. This will is simple for now. Swap will be implemented
+$TC p4template create metadata/calc/temp mid 7 type macaddr
+#Metadata for egress port
+$TC p4template create metadata/calc/egress_spec mid 8 type dev
+
+echo "dumping metadata"
+sleep 1
+$TC p4template get metadata/calc
+
+echo "Creating Actions and externs.."
+sleep 1
+####################################
+# Create Actions + defined Externs #
+####################################
+
+$TC p4template create action/calc/MyIngress/send_back actid 6 \
+     param result type be32 \
+     cmd set hdrfield.calc.calc_parser.calc.res param.result \
+     cmd print prefix send_back hdrfield.calc.calc_parser.calc.res \
+     cmd set metadata.calc.temp hdrfield.calc.calc_parser.ethernet.dstAddr   \
+     cmd set hdrfield.calc.calc_parser.ethernet.dstAddr hdrfield.calc.calc_parser.ethernet.srcAddr \
+     cmd set hdrfield.calc.calc_parser.ethernet.srcAddr metadata.calc.temp \
+     cmd print prefix send_back metadata.kernel.iif \
+     cmd set metadata.calc.egress_spec metadata.kernel.iif \
+     cmd print prefix send_back metadata.calc.egress_spec
+
+$TC p4template update action/calc/MyIngress/send_back state active
+
+#Create action operation_add
+$TC p4template create action/calc/MyIngress/operation_add actid 1 \
+    cmd plus metadata.calc.result hdrfield.calc.calc_parser.calc.operand_a hdrfield.calc.calc_parser.calc.operand_b \
+    cmd act calc.MyIngress/send_back metadata.calc.result
+
+$TC p4template update action/calc/MyIngress/operation_add state active
+
+#Create action operation_sub
+$TC p4template create action/calc/MyIngress/operation_sub actid 2 \
+    cmd sub metadata.calc.result hdrfield.calc.calc_parser.calc.operand_a hdrfield.calc.calc_parser.calc.operand_b \
+    cmd act calc.MyIngress/send_back metadata.calc.result
+
+$TC p4template update action/calc/MyIngress/operation_sub state active
+
+#Create action operation_and
+$TC p4template create action/calc/MyIngress/operation_and actid 3 \
+    cmd band metadata.calc.result hdrfield.calc.calc_parser.calc.operand_a hdrfield.calc.calc_parser.calc.operand_b \
+    cmd act calc.MyIngress/send_back metadata.calc.result
+
+$TC p4template update action/calc/MyIngress/operation_and state active
+
+
+#Create action operation_or
+$TC p4template create action/calc/MyIngress/operation_or actid 4 \
+    cmd bor metadata.calc.result hdrfield.calc.calc_parser.calc.operand_a hdrfield.calc.calc_parser.calc.operand_b \
+    cmd act calc.MyIngress/send_back metadata.calc.result
+
+$TC p4template update action/calc/MyIngress/operation_or state active
+
+#Create action operation_xor
+$TC p4template create action/calc/MyIngress/operation_xor actid 5 \
+    cmd bxor metadata.calc.result hdrfield.calc.calc_parser.calc.operand_a hdrfield.calc.calc_parser.calc.operand_b \
+    cmd act calc.MyIngress/send_back metadata.calc.result
+
+$TC p4template update action/calc/MyIngress/operation_xor state active
+
+#create drop operation
+$TC p4template create action/calc/MyIngress/drop actid 7 \
+	    cmd set metadata.calc.global/drop constant.bit1.1 
+# activate
+$TC p4template update action/calc/MyIngress/drop state active
+
+#########################################################
+# Declare table "calculate" and associated infrastructure
+#########################################################
+#XXX: remove "keysid" and see if it works
+$TC p4template create table/calc/MyIngress/calculate tblid 1 \
+	keysz 8 nummasks 8 tentries 2048
+
+# Table "calculate" preaction T_calculate_PRA
+##############################################
+# Create code that will process the key for table calculate
+# chosen naming convenction for this action is T_<Table name>_PRA
+# note: right now, the only thing we are doing in table preaction is
+#       key selection
+$TC p4template create action/calc/MyIngress/T_calculate_PRA \
+  cmd print prefix T_calculate_PRA hdrfield.calc.calc_parser.calc.op \
+  cmd set key.calc.MyIngress/calculate hdrfield.calc.calc_parser.calc.op \
+  cmd print prefix T_calculate_PRA key.calc.MyIngress/calculate
+
+#Activate
+$TC p4template update action/calc/MyIngress/T_calculate_PRA state active
+
+# bind table with key creating action. 
+#XXX: See if we can explicitly add table preaction in of "keys id 1"
+$TC p4template update table/calc/MyIngress/calculate \
+    key action calc/MyIngress/T_calculate_PRA
+
+# Table "calculate" postaction T_calculate_POA
+##############################################
+#naming convention is T_<Table Name>_POA
+#
+# note for this case it is not needed but we will create it here
+# because current code expects it.. (To Be Fixed)
+# we use it below for debugging..
+# XXX: code needs fixing..
+
+$TC p4template create action/calc/calculate/T_calculate_POA \
+	cmd print prefix T_calculate_POA metadata.calc.global/drop
+#Activate creation action
+$TC p4template update action/calc/calculate/T_calculate_POA state active
+
+#bind action T_calculate_POA to the tables postactions
+$TC p4template update table/calc/MyIngress/calculate postactions \
+action calc/calculate/T_calculate_POA
+
+# Table "calculate" miss action T_calculate_miss
+################################################
+# Create default miss action which happens to be a const
+# Naming: T_<Table name>_miss
+# # in this case it is just drop which sets the drop metadata
+
+$TC p4template update table/calc/MyIngress/calculate \
+  default_miss_action permissions 0x109 action calc/MyIngress/drop 
+
+# Add Table constant entries
+#############################
+
+#Add constant entries to table "calculate"
+#requires introspection file for now..
+$TC p4template update table/calc/MyIngress/calculate \
+	entry op 0x2b prio 1 action calc/MyIngress/operation_add
+
+$TC p4template update table/calc/MyIngress/calculate \
+	entry op 0x2d prio 2 action calc/MyIngress/operation_sub
+
+$TC p4template update table/calc/MyIngress/calculate \
+	entry op 0x26 prio 3 action calc/MyIngress/operation_and
+
+$TC p4template update table/calc/MyIngress/calculate \
+	entry op 0x7c prio 4 action calc/MyIngress/operation_or
+#
+$TC p4template update table/calc/MyIngress/calculate \
+	entry op 0x5e prio 5 action calc/MyIngress/operation_xor
+#
+#$TC p4template update table/calc/MyIngress/calculate \
+#	entry op 0x8f prio 6 action ok
+#
+#$TC p4template update table/calc/MyIngress/calculate \
+#	entry op 0x1f prio 7 action drop
+
+#seal permissions for this table to be Control + data plane read-only
+$TC p4template update table/calc/MyIngress/calculate permissions 0x109
+
+#
+#########################################################
+# Define pipeline pre/post infrastructure
+#########################################################
+
+# Define pipeline preaction PPREA
+##################################
+#Naming convention for pipeline preaction is PPREA
+#
+# calc.preactions = 
+# if hdr.p4calc.isValid() (tableapply calc.MyIngress/calculate }
+# else we drop
+#
+$TC p4template create action/calc/PPREA \
+  cmd print prefix PPREAarrivedat metadata.kernel.iif \
+  cmd print prefix PPREADir metadata.kernel.direction \
+  cmd print prefix PPREAif hdrfield.calc.calc_parser.calc.isValid \
+  cmd beq hdrfield.calc.calc_parser.calc.isValid constant.bit1.1 control pipe / jump else \
+  cmd tableapply table.calc.MyIngress/calculate \
+  cmd print prefix PPREAendif hdrfield.calc.calc_parser.calc.isValid \
+  cmd jump endif \
+  cmd label else \
+  cmd print prefix PPREAelse hdrfield.calc.calc_parser.calc.isValid \
+  cmd set metadata.calc.global/drop constant.bit1.1 \
+  cmd label endif
+
+#Activate action
+$TC p4template update action/calc/PPREA state active
+
+#bind action to Pipeline Preaction
+$TC p4template update pipeline/calc preactions action calc/PPREA
+
+# Define pipeline postaction PPOA
+##################################
+#Naming convention for pipeline postaction is PPOA
+#
+# calc.postactions => if (metadata.cacl.global/drop == 1) { drop }
+# else we send out to port in metadata.calc.egress_spec
+$TC p4template create action/calc/PPOA \
+  cmd print prefix PPOAbeq metadata.calc.global/drop \
+  cmd beq metadata.calc.global/drop constant.bit1.1 control drop / pipe \
+  cmd print prefix PPOAReadyToSend hdrfield.calc.calc_parser.calc.res \
+  cmd send_port_egress metadata.calc.egress_spec
+
+#Activate action
+$TC p4template update action/calc/PPOA state active
+
+#bind action to Pipeline Postaction
+$TC p4template update pipeline/calc postactions action calc/PPOA
+
+#$TC p4template get  pipeline/calc
+
+# Seal pipeline
+$TC p4template update pipeline/calc state ready
+
+sleep 1
+$TC p4template get pipeline/calc

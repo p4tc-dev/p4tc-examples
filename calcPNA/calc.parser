@@ -1,0 +1,132 @@
+#!/bin/bash -x
+#Execute until failure flag
+set -e
+
+# This is a sample demo script which creates a kParser instance named
+# "test_parser" for parsing bit offsets for five tuples of TCP-IP header,
+# i.e. ipproto, ipv4 source address, ipv4 destination address, tcp source port,
+# tcp destination port.
+
+die()
+{
+	echo "error:$1"
+	exit -1
+}
+
+IP="ip"
+ipcmd() {
+# -j -p enables formatted json print in stdout
+	echo "Executing \`$IP -j -p $@\`" | fold -w 80
+	$IP -j -p "$@" || die "command \`$@\` failed."
+	echo "---------------------------------------------------------------"
+}
+
+#Lookup table creation for checking next nodes
+ipcmd parser create table name table.ether
+ipcmd parser create table name check_p4calc
+
+#Extraction definition per header. Values (addoff local offsets)
+ipcmd parser create metadata-rule name md.calc.dstAddr	\
+		type bit-offset						    		\
+		md-off 0							        	\
+		addoff 0
+
+ipcmd parser create metadata-rule name md.calc.srcAddr	\
+		type bit-offset			    	            	\
+		md-off 2				                    	\
+		addoff 48
+
+ipcmd parser create metadata-rule name md.calc.etherType\
+		type bit-offset			    	            	\
+		md-off 4				                    	\
+		addoff 96
+
+ipcmd parser create metadata-rule name md.calc.p	\
+		type bit-offset						    	\
+		md-off 6							        \
+		addoff 0
+
+ipcmd parser create metadata-rule name md.calc.four	\
+		type bit-offset			    	            \
+		md-off 8				                    \
+		addoff 8
+
+ipcmd parser create metadata-rule name md.calc.ver	\
+		type bit-offset						        \
+		md-off 10						            \
+		addoff 16
+
+ipcmd parser create metadata-rule name md.calc.op	\
+		type bit-offset						        \
+		md-off 12						            \
+		addoff 24
+
+ipcmd parser create metadata-rule name md.calc.operand_a    \
+		type bit-offset						                \
+		md-off 14						                    \
+		addoff 32
+
+ipcmd parser create metadata-rule name md.calc.operand_b    \
+		type bit-offset						                \
+		md-off 16						                    \
+		addoff 64
+
+ipcmd parser create metadata-rule name md.calc.res  \
+		type bit-offset						        \
+		md-off 18						            \
+		addoff 96
+
+ipcmd parser create metadata-rule name md.calc.isValid  \
+		type constant-halfword        \
+		md-off 20					            \
+		constantvalue 1
+
+# Creates a metalist object to be associated with a parse node. 
+ipcmd parser create metalist name mdl.calceth	\
+		md.rule md.calc.dstAddr					\
+		md.rule md.calc.srcAddr					\
+		md.rule md.calc.etherType
+
+ipcmd parser create metalist name mdl.calc  \
+		md.rule md.calc.p                   \
+		md.rule md.calc.four                \
+		md.rule md.calc.ver                 \
+		md.rule md.calc.op                  \
+		md.rule md.calc.operand_a           \
+		md.rule md.calc.operand_b           \
+		md.rule md.calc.res  \
+		md.rule md.calc.isValid
+
+ipcmd parser create node name node.calc 	\
+		min-hdr-length 16 					\
+		metalist mdl.calc
+
+ipcmd parser create table/check_p4calc	\
+		key 0x503401	\
+		node node.calc
+
+# it verifies the value of P field, and if ok, moves to next four field
+ipcmd parser create node name node.check_p4calc \
+		min-hdr-length 3 \
+		nxt.field-off 0	\
+		nxt.field-len 3 \
+		overlay true	\
+		nxt.table check_p4calc
+
+# Creates a parse nodes. Contains header size and how to calculate next header
+ipcmd parser create node name node.ether	\
+		min-hdr-length 14					\
+		nxt.field-off 12					\
+		nxt.field-len 2						\
+		metalist mdl.calceth				\
+		nxt.table table.ether
+
+# Populate lookup tables.
+ipcmd parser create table/table.ether	\
+		key 0x1234						\
+		node node.check_p4calc
+
+# Creates a parser object and specifies starting node
+ipcmd parser create parser name calc_parser id 1	\
+		metametasize 22								\
+		rootnode node.ether
