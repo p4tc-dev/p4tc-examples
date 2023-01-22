@@ -1,0 +1,38 @@
+#!/bin/bash -x
+
+TC="tc"
+
+IP="ip"
+ipcmd() {
+# -j -p enables formatted json print in stdout
+	echo "Executing \`$IP $@\`" | fold -w 80
+	$IP "$@" || die "command \`$@\` failed."
+	echo "---------------------------------------------------------------"
+}
+
+DEV=port0
+
+set -e
+
+$TC qdisc del dev $DEV clsact
+sleep 1
+$TC p4template del pipeline/calc
+
+# Creates a parser object and specifies starting node
+ipcmd parser delete parser name calc_parser
+
+# Creates a metalist object to be associated with a parse node.
+ipcmd parser delete metalist name mdl.calceth
+ipcmd parser delete metalist name mdl.calc
+
+ipcmd parser delete node name node.calc
+
+ipcmd parser delete table/check_p4calc
+
+# it verifies the value of P field, and if ok, moves to next four field
+ipcmd parser delete node name node.check_p4calc
+
+# Creates a parse nodes. Contains header size and how to calculate next header
+ipcmd parser delete node name node.ether
+
+ipcmd parser delete table name table.ether
