@@ -58,7 +58,9 @@ $TC p4template update action/simple_l3_pna/MainControlImpl/drop state active
 #########################################################
 
 $TC p4template create table/simple_l3_pna/MainControlImpl/l3_match_rx \
-	tblid 1  keysz 32 nummasks 8 tentries 2048
+	tblid 1  keysz 32 nummasks 8 tentries 2048 \
+	table_acts act name simple_l3_pna/MainControlImpl/send flags tableonly \
+	act name simple_l3_pna/MainControlImpl/drop flags defaultonly
 
 # Table "l3_match_rx" preaction T_l3_match_rx_PRA
 ##################################################

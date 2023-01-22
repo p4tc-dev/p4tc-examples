@@ -20,9 +20,9 @@ $TC p4template create hdrfield/calc/calc_parser/calc/p hdrfieldid 4 type bit8
 $TC p4template create hdrfield/calc/calc_parser/calc/four hdrfieldid 5 type bit8
 $TC p4template create hdrfield/calc/calc_parser/calc/ver hdrfieldid 6 type bit8
 $TC p4template create hdrfield/calc/calc_parser/calc/op hdrfieldid 7 type bit8
-$TC p4template create hdrfield/calc/calc_parser/calc/operand_a hdrfieldid 8 type bit32
-$TC p4template create hdrfield/calc/calc_parser/calc/operand_b hdrfieldid 9 type bit32
-$TC p4template create hdrfield/calc/calc_parser/calc/res hdrfieldid 10 type bit32
+$TC p4template create hdrfield/calc/calc_parser/calc/operand_a hdrfieldid 8 type be32
+$TC p4template create hdrfield/calc/calc_parser/calc/operand_b hdrfieldid 9 type be32
+$TC p4template create hdrfield/calc/calc_parser/calc/res hdrfieldid 10 type be32
 $TC p4template create hdrfield/calc/calc_parser/calc/isValid hdrfieldid 11 type bit1
 echo "dumping header fields"
 sleep 1
@@ -38,7 +38,7 @@ $TC p4template create metadata/calc/global/drop mid 5 type bit1
 #Metadata for output port
 $TC p4template create metadata/calc/global/output_port mid 8 type dev
 #Metadata for result. This will hold the result of any operation 
-$TC p4template create metadata/calc/result mid 3 type bit32
+$TC p4template create metadata/calc/result mid 3 type be32
 #Metadata for swapping. This will is simple for now. Swap will be implemented
 $TC p4template create metadata/calc/temp mid 7 type macaddr
 
@@ -53,7 +53,7 @@ sleep 1
 ####################################
 
 $TC p4template create action/calc/MyIngress/send_back actid 6 \
-     param result type bit32 \
+     param result type be32 \
      cmd set hdrfield.calc.calc_parser.calc.res param.result \
      cmd print prefix send_back hdrfield.calc.calc_parser.calc.res \
      cmd set metadata.calc.temp hdrfield.calc.calc_parser.ethernet.dstAddr   \
@@ -113,7 +113,12 @@ $TC p4template update action/calc/MyIngress/drop state active
 #XXX: remove "keysid" and see if it works
 $TC p4template create table/calc/MyIngress/calculate tblid 1 \
 	keysz 8 nummasks 8 tentries 2048 \
-	keys id 1
+	table_acts act name calc/MyIngress/operation_xor flags tableonly \
+	act name calc/MyIngress/operation_or flags tableonly \
+	act name calc/MyIngress/operation_and flags tableonly \
+	act name calc/MyIngress/operation_add flags tableonly \
+	act name calc/MyIngress/operation_sub flags tableonly \
+	act name calc/MyIngress/drop flags defaultonly
 
 # Table "calculate" preaction T_calculate_PRA
 ##############################################
@@ -130,9 +135,8 @@ $TC p4template create action/calc/MyIngress/T_calculate_PRA \
 $TC p4template update action/calc/MyIngress/T_calculate_PRA state active
 
 # bind table with key creating action. 
-#XXX: See if we can explicitly add table preaction in of "keys id 1"
 $TC p4template update table/calc/MyIngress/calculate \
-    keys id 1 action calc/MyIngress/T_calculate_PRA
+    key action calc/MyIngress/T_calculate_PRA
 
 # Table "calculate" postaction T_calculate_POA
 ##############################################
