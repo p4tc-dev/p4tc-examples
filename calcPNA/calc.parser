@@ -133,6 +133,6 @@ ipcmd parser create table/table.ether	\
 		node node.check_p4calc
 
 # Creates a parser object and specifies starting node
-ipcmd parser create parser name calc_parser id 1	\
+ipcmd parser create parser name calc_parser \
 		metametasize 22								\
 		rootnode node.ether

@@ -84,6 +84,6 @@ ipcmd parser create table/table.ether	\
 		node node.ipv4
 
 # Creates a parser object and specifies starting node
-ipcmd parser create parser name parser1 id 1	\
+ipcmd parser create parser name parser1 \
 		metametasize 10			\
 		rootnode node.ether

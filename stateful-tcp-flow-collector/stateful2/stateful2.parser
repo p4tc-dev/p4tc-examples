@@ -112,6 +112,6 @@ ipcmd parser create table/table.ip	\
 		node node.tcp
 
 # Creates a parser object and specifies starting node
-ipcmd parser create parser name parser1 id 1	\
+ipcmd parser create parser name parser1 \
 		metametasize 16			\
 		rootnode node.ether
