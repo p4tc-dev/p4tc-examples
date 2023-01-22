@@ -112,7 +112,13 @@ $TC p4template update action/calc/MyIngress/drop state active
 #########################################################
 #XXX: remove "keysid" and see if it works
 $TC p4template create table/calc/MyIngress/calculate tblid 1 \
-	keysz 8 nummasks 8 tentries 2048
+	keysz 8 nummasks 8 tentries 2048 \
+	table_acts act name calc/MyIngress/operation_xor flags tableonly \
+	act name calc/MyIngress/operation_or flags tableonly \
+	act name calc/MyIngress/operation_and flags tableonly \
+	act name calc/MyIngress/operation_add flags tableonly \
+	act name calc/MyIngress/operation_sub flags tableonly \
+	act name calc/MyIngress/drop flags defaultonly
 
 # Table "calculate" preaction T_calculate_PRA
 ##############################################
@@ -129,7 +135,6 @@ $TC p4template create action/calc/MyIngress/T_calculate_PRA \
 $TC p4template update action/calc/MyIngress/T_calculate_PRA state active
 
 # bind table with key creating action. 
-#XXX: See if we can explicitly add table preaction in of "keys id 1"
 $TC p4template update table/calc/MyIngress/calculate \
     key action calc/MyIngress/T_calculate_PRA
 

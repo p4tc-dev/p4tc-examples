@@ -63,7 +63,9 @@ $TC p4template update action/p4tc_test_002/MainControlImpl/default_route_drop st
 
 echo "Creating table.."
 $TC p4template create table/p4tc_test_002/MainControlImpl/ipv4_tbl \
-	tblid 1 keysz 72 nummasks 8 tentries 2048
+	tblid 1 keysz 72 nummasks 8 tentries 2048 \
+	table_acts act name p4tc_test_002/MainControlImpl/default_route_drop flags defaultonly \
+	act name p4tc_test_002/MainControlImpl/next_hop flags tableonly
 
 # Table "ipv4_tbl" preaction T_ipv4_tbl_PRA
 ##################################################

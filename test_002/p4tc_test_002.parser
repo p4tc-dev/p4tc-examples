@@ -8,6 +8,12 @@ die()
 	exit -1
 }
 
+#md_off is (hdrfieldid - 1) * 2
+headerid()
+{
+	echo $((($1 - 1)*2))
+}
+
 IP="ip"
 
 ipcmd() {
@@ -27,26 +33,26 @@ ipcmd parser create table name table.ether
 # example ipproto is 2/1+1 == 2; srcaddr is 4/2 + 1 = 3 and dstaddr 3+1
 ipcmd parser create metadata-rule name md.ipv4.ttl	\
 		type bit-offset			   	\
-		md-off 0			        \
+		md-off $(headerid 1)		        \
 		addoff 64
 
 ipcmd parser create metadata-rule name md.ipv4.ipproto_offset	\
 		type bit-offset			            \
-		md-off 2			                \
+		md-off $(headerid 2)			                \
 		addoff 72
 
 ipcmd parser create metadata-rule name md.ipv4.src_address_offset	\
 		type bit-offset			                \
 		addoff 96			                \
-		md-off 4
+		md-off $(headerid 3)
 ipcmd parser create metadata-rule name md.ipv4.dst_address_offset	\
 		type bit-offset			         \
 		addoff 128			         \
-		md-off 6
+		md-off $(headerid 4)
 
 ipcmd parser create metadata-rule name md.ipv4.isValid	\
 		type constant-halfword		      \
-		md-off 12				\
+		md-off $(headerid 7)				\
 		constantvalue 1
 
 
@@ -78,6 +84,6 @@ ipcmd parser create table/table.ether	\
 		node node.ipv4
 
 # Creates a parser object and specifies starting node
-ipcmd parser create parser name parser1 id 1	\
+ipcmd parser create parser name parser1 \
 		metametasize 10			\
 		rootnode node.ether

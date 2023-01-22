@@ -1,0 +1,34 @@
+#!/bin/bash -x
+
+TC="tc"
+set -e
+
+IP="ip"
+ipcmd() {
+# -j -p enables formatted json print in stdout
+	echo "Executing \`$IP $@\`" | fold -w 80
+	$IP "$@" || die "command \`$@\` failed."
+	echo "---------------------------------------------------------------"
+}
+
+DEV=port0
+
+$TC qdisc del dev $DEV clsact
+sleep 1
+$TC p4template del pipeline/p4tc_test_003
+$TC actions flush action gact
+
+# deletes a parser object and specifies starting node
+ipcmd parser delete parser name parser1
+
+ipcmd parser delete metalist name mdl.ipv4
+ipcmd parser delete metalist name mdl.udp
+
+ipcmd parser delete node name node.ether
+ipcmd parser delete node name node.ipv4
+ipcmd parser delete node name node.udp
+
+#Lookup table creation for checking next nodes
+ipcmd parser delete table name table.ip
+
+ipcmd parser delete table name table.ether

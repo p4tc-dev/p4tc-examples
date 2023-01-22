@@ -13,6 +13,12 @@ die()
 	exit -1
 }
 
+#md_off is (hdrfieldid - 1) * 2
+headerid()
+{
+	echo $((($1 - 1)*2))
+}
+
 IP="ip"
 ipcmd() {
 # -j -p enables formatted json print in stdout
@@ -28,57 +34,57 @@ ipcmd parser create table name check_p4calc
 #Extraction definition per header. Values (addoff local offsets)
 ipcmd parser create metadata-rule name md.calc.dstAddr	\
 		type bit-offset						    		\
-		md-off 0							        	\
+		md-off $(headerid 1)	\
 		addoff 0
 
 ipcmd parser create metadata-rule name md.calc.srcAddr	\
 		type bit-offset			    	            	\
-		md-off 2				                    	\
+		md-off $(headerid 2)				                    	\
 		addoff 48
 
 ipcmd parser create metadata-rule name md.calc.etherType\
 		type bit-offset			    	            	\
-		md-off 4				                    	\
+		md-off $(headerid 3)				                    	\
 		addoff 96
 
 ipcmd parser create metadata-rule name md.calc.p	\
 		type bit-offset						    	\
-		md-off 6							        \
+		md-off $(headerid 4)		\
 		addoff 0
 
 ipcmd parser create metadata-rule name md.calc.four	\
 		type bit-offset			    	            \
-		md-off 8				                    \
+		md-off $(headerid 5)				                    \
 		addoff 8
 
 ipcmd parser create metadata-rule name md.calc.ver	\
 		type bit-offset						        \
-		md-off 10						            \
+		md-off $(headerid 6)					            \
 		addoff 16
 
 ipcmd parser create metadata-rule name md.calc.op	\
 		type bit-offset						        \
-		md-off 12						            \
+		md-off $(headerid 7)						            \
 		addoff 24
 
 ipcmd parser create metadata-rule name md.calc.operand_a    \
 		type bit-offset						                \
-		md-off 14						                    \
+		md-off $(headerid 8)						                    \
 		addoff 32
 
 ipcmd parser create metadata-rule name md.calc.operand_b    \
 		type bit-offset						                \
-		md-off 16						                    \
+		md-off $(headerid 9)						                    \
 		addoff 64
 
 ipcmd parser create metadata-rule name md.calc.res  \
 		type bit-offset						        \
-		md-off 18						            \
+		md-off $(headerid 10)					            \
 		addoff 96
 
 ipcmd parser create metadata-rule name md.calc.isValid  \
 		type constant-halfword        \
-		md-off 20					            \
+		md-off $(headerid 11)					            \
 		constantvalue 1
 
 # Creates a metalist object to be associated with a parse node. 
@@ -127,6 +133,6 @@ ipcmd parser create table/table.ether	\
 		node node.check_p4calc
 
 # Creates a parser object and specifies starting node
-ipcmd parser create parser name calc_parser id 1	\
+ipcmd parser create parser name calc_parser \
 		metametasize 22								\
 		rootnode node.ether

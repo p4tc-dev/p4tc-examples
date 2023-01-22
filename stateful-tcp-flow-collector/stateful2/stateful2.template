@@ -53,7 +53,8 @@ $TC p4template update action/stateful2/ct_tcp_default_miss state active
 #########################################################
 
 $TC p4template create table/stateful2/MainControlImpl/ct_tcp_table \
-	tblid 1 keysz 112 nummasks 8 tentries 2048 permissions 0x3FF
+	tblid 1 keysz 112 nummasks 8 tentries 2048 permissions 0x3FF \
+	table_acts act name stateful2/ct_tcp_default_miss flags defaultonly
 
 # Table "ct_tcp_table" preaction T_ct_tcp_table_PRA
 ##################################################

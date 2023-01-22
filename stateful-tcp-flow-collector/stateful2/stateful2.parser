@@ -13,6 +13,12 @@ die()
 
 IP="ip"
 
+#md_off is (hdrfieldid - 1) * 2
+headerid()
+{
+	echo $((($1 - 1)*2))
+}
+
 ipcmd() {
 # -j -p enables formatted json print in stdout
 	echo "Executing \`$IP -j -p $@\`" | fold -w 80
@@ -27,41 +33,41 @@ ipcmd parser create table name table.ether
 #Extraction definition per header. Values (addoff local offsets)
 ipcmd parser create metadata-rule name md.ipv4.ttl	\
 		type bit-offset			   	\
-		md-off 0			        \
+		md-off $(headerid 1)		        \
 		addoff 64
 
 ipcmd parser create metadata-rule name md.ipv4.ipproto_offset	\
 		type bit-offset			            \
-		md-off 2			                \
+		md-off $(headerid 2)			                \
 		addoff 72
 
 ipcmd parser create metadata-rule name md.ipv4.src_address_offset	\
 		type bit-offset			                \
 		addoff 96			                \
-		md-off 4
+		md-off $(headerid 3)
 ipcmd parser create metadata-rule name md.ipv4.dst_address_offset	\
 		type bit-offset			         \
 		addoff 128			         \
-		md-off 6
+		md-off $(headerid 4)
 
 ipcmd parser create metadata-rule name md.tcp.src_port	\
 		type bit-offset			        \
 		addoff 0		            \
-		md-off 8
+		md-off $(headerid 5)
 
 ipcmd parser create metadata-rule name md.tcp.dst_port	\
 		type bit-offset			        \
 		addoff 16		            \
-		md-off 10
+		md-off $(headerid 6)
 
 ipcmd parser create metadata-rule name md.ipv4.isValid	\
 		type constant-halfword		      \
-		md-off 12				\
+		md-off $(headerid 7)			\
 		constantvalue 1
 
 ipcmd parser create metadata-rule name md.tcp.isValid	\
 		type constant-halfword		      \
-		md-off 14				\
+		md-off $(headerid 8)			\
 		constantvalue 1
 
 
@@ -106,6 +112,6 @@ ipcmd parser create table/table.ip	\
 		node node.tcp
 
 # Creates a parser object and specifies starting node
-ipcmd parser create parser name parser1 id 1	\
+ipcmd parser create parser name parser1 \
 		metametasize 16			\
 		rootnode node.ether
