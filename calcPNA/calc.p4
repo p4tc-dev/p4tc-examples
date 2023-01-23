@@ -38,7 +38,7 @@
  */
 
 #include <core.p4>
-#include <v1model.p4>
+#include <pna.p4>
 
 /*
  * Define the headers the program will recognize
@@ -82,7 +82,7 @@ header p4calc_t {
  * We only need to declare the type, but there is no need to instantiate it,
  * because it is done "by the architecture", i.e. outside of P4 functions
  */
-struct headers {
+struct headers_t {
     ethernet_t   ethernet;
     p4calc_t     p4calc;
 }
@@ -94,20 +94,22 @@ struct headers {
  * because it is done "by the architecture", i.e. outside of P4 functions
  */
 
-struct metadata {
+struct metadata_t {
     /* In our case it is empty */
 }
 
 /*************************************************************************
  ***********************  P A R S E R  ***********************************
  *************************************************************************/
-parser MyParser(packet_in packet,
-                out headers hdr,
-                inout metadata meta,
-                inout standard_metadata_t standard_metadata) {
+parser MainParserImpl(
+    packet_in pkt,
+    out   headers_t  hdr,
+    inout metadata_t meta,
+    in    pna_main_parser_input_metadata_t istd)
+{
 
     state start {
-        packet.extract(hdr.ethernet);
+        pkt.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             P4CALC_ETYPE : check_p4calc;
             default      : accept;
@@ -115,34 +117,30 @@ parser MyParser(packet_in packet,
     }
 
     state check_p4calc {
-        transition select(packet.lookahead<p4calc_t>().p,
-        packet.lookahead<p4calc_t>().four,
-        packet.lookahead<p4calc_t>().ver) {
+        transition select(pkt.lookahead<p4calc_t>().p,
+        pkt.lookahead<p4calc_t>().four,
+        pkt.lookahead<p4calc_t>().ver) {
             (P4CALC_P, P4CALC_4, P4CALC_VER) : parse_p4calc;
             default                          : accept;
         }
     }
 
     state parse_p4calc {
-        packet.extract(hdr.p4calc);
+        pkt.extract(hdr.p4calc);
         transition accept;
     }
 }
 
-/*************************************************************************
- ************   C H E C K S U M    V E R I F I C A T I O N   *************
- *************************************************************************/
-control MyVerifyChecksum(inout headers hdr,
-                         inout metadata meta) {
-    apply { }
-}
 
 /*************************************************************************
- **************  I N G R E S S   P R O C E S S I N G   *******************
+ **********************  M A I N    C O N T R O L ************************
  *************************************************************************/
-control MyIngress(inout headers hdr,
-                  inout metadata meta,
-                  inout standard_metadata_t standard_metadata) {
+control MainControlImpl(
+    inout headers_t  hdr,
+    inout metadata_t meta,
+    in    pna_main_input_metadata_t  istd,
+    inout pna_main_output_metadata_t ostd)
+{
 
     action send_back(bit<32> result) {
         bit<48> tmp;
@@ -156,7 +154,7 @@ control MyIngress(inout headers hdr,
         hdr.ethernet.srcAddr = tmp;
 
         /* Send the packet back to the port it came from */
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        send_to_port(istd.input_port);
     }
 
     action operation_add() {
@@ -180,12 +178,12 @@ control MyIngress(inout headers hdr,
     }
 
     action operation_drop() {
-        mark_to_drop(standard_metadata);
+        drop_packet();
     }
 
     table calculate {
         key = {
-            hdr.p4calc.op        : exact; @name("op")
+            hdr.p4calc.op        : exact @name("op");
         }
         actions = {
             operation_add;
@@ -215,42 +213,29 @@ control MyIngress(inout headers hdr,
     }
 }
 
-/*************************************************************************
- ****************  E G R E S S   P R O C E S S I N G   *******************
- *************************************************************************/
-control MyEgress(inout headers hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    apply { }
-}
-
-/*************************************************************************
- *************   C H E C K S U M    C O M P U T A T I O N   **************
- *************************************************************************/
-
-control MyComputeChecksum(inout headers hdr, inout metadata meta) {
-    apply { }
-}
 
 /*************************************************************************
  ***********************  D E P A R S E R  *******************************
  *************************************************************************/
-control MyDeparser(packet_out packet, in headers hdr) {
+control MainDeparserImpl(
+    packet_out pkt,
+    in    headers_t hdr,
+    in    metadata_t meta,
+    in    pna_main_output_metadata_t ostd)
+{
     apply {
-        packet.emit(hdr.ethernet);
-        packet.emit(hdr.p4calc);
+        pkt.emit(hdr.ethernet);
+        pkt.emit(hdr.p4calc);
     }
 }
 
 /*************************************************************************
- ***********************  S W I T T C H **********************************
+ ******************************  P N A  **********************************
  *************************************************************************/
 
-V1Switch(
-MyParser(),
-MyVerifyChecksum(),
-MyIngress(),
-MyEgress(),
-MyComputeChecksum(),
-MyDeparser()
-) main;
+PNA_NIC(
+    MainParserImpl(),
+    MainControlImpl(),
+    MainDeparserImpl()
+    ) main;
+
