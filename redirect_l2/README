@@ -1,0 +1,53 @@
+#
+#Requires 4 terminals
+#three terminals inside the container
+#one outside
+#to enter the container p4node type
+sudo ip netns exec p4node /bin/bash
+
+#just standard TC
+container prompt1 > TC="/usr/sbin/tc"
+#run TC monitor
+container prompt1 > $TC mon
+
+#From terminal 2 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+DEV=port0
+sudo tcpdump -n -i $DEV
+
+#From terminal 3 get another root prompt in the container:
+sudo ip netns exec p4node /bin/bash
+#Inside the container 3 prompt
+#------------------------------
+container prompt2> cd examples/redirect_l2
+#run the parser script:
+./redirect_l2.parser
+
+#run the template script - watch for tc mon to see things happening
+./redirect_l2.template
+
+#run the runtime script (again watch tc mon)
+./redirect_l2.runtime
+
+The next steps are tested with the traffic being generated at
+the VM (see terminal 4 below)
+
+Step 1: No entry, send a ping from VM side and see it dropped
+This exercises the default miss action..
+
+step 2:
+$TC p4runtime create redirect_l2/table/MainControlImpl/nh_table \
+ input_port port0 prio 11 action redirect_l2/MainControlImpl/send_nh \
+ param port type dev port1 param dmac type macaddr 4a:1c:ee:51:ae:f2 \
+ param smac type macaddr 52:48:8d:aa:99:ef
+
+#dump the table to check..
+$TC p4runtime get redirect_l2/table/MainControlImpl/nh_table
+
+#dump the table and show counters for the actions to check..
+$TC -s p4runtime get redirect_l2/table/MainControlImpl/nh_table
+
+#Outside on the VM from terminal 4
+#---------------------------------
+
+ping -I p4port0 10.0.1.2 -c 1

@@ -1,0 +1,69 @@
+{
+    "schema_version" : "1.0.0",
+    "pipeline_name" : "redirect_l2",
+    "tables" : [
+        {
+            "name" : "MainControlImpl/nh_table",
+            "id" : 1,
+            "tentries" : 128,
+            "nummask" : 8,
+            "keysize" :32,
+            "keyid" :1,
+            "keyfields" : [
+                {
+                    "id" : 1,
+                    "name" : "input_port",
+                    "match_type" : "exact",
+		    "type": "dev",
+                    "bitwidth" : 32
+                }
+            ],
+            "actions" : [
+                {
+                    "id" : 1,
+                    "name" : "MainControlImpl.send_nh",
+                    "action_scope" : "TableAndDefault",
+                    "default_hit_action" : false,
+                    "default_miss_action" : false,
+                    "annotations" : [],
+                    "params" : [
+                        {
+                            "id" : 1,
+                            "name" : "port",
+                            "type" : "dev",
+                            "read_only" : false,
+                            "annotations" : [],
+                            "bitwidth" : 32
+                        },
+                        {
+                            "id" : 2,
+                            "name" : "dmac",
+                            "type" : "macaddr",
+                            "read_only" : false,
+                            "annotations" : [],
+                            "bitwidth" : 48
+                        },
+                        {
+                            "id" : 3,
+                            "name" : "smac",
+                            "type" : "macaddr",
+                            "read_only" : false,
+                            "annotations" : [],
+                            "bitwidth" : 48
+                        }
+                        
+                    ]
+                },
+                {
+                    "id" : 2,
+                    "name" : "MainControlImpl.drop",
+                    "action_scope" : "TableAndDefault",
+                    "default_hit_action" : false,
+                    "default_miss_action" : true,
+                    "annotations" : [],
+                    "params" : []
+                }
+            ]
+        }
+    ]
+}

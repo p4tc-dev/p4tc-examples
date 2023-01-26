@@ -1,0 +1,16 @@
+#!/bin/bash -x
+
+TC="tc"
+
+set -e
+
+DEV=port0
+
+#$TC qdisc del dev $DEV clsact
+$TC qdisc add dev $DEV clsact
+
+# Create p4 filter and attach it to ingress
+$TC filter add dev $DEV ingress protocol ip prio 6 p4  pname redirect_l2 action ok
+
+# simple test for redirect rule
+#$TC p4runtime create redirect_l2/table/MainControlImpl/nh_table input_port port0 prio 11 action redirect_l2/MainControlImpl/send_nh param port type dev port1 param dmac type macaddr 4a:1c:ee:51:ae:f2 param smac type macaddr 52:48:8d:aa:99:ef

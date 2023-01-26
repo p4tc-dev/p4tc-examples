@@ -1,0 +1,63 @@
+#!/bin/bash -x
+#Execute until failure flag
+set -e
+
+# This is a sample demo script which creates a kParser instance named
+# "test_parser" for parsing bit offsets for five tuples of TCP-IP header,
+# i.e. ipproto, ipv4 source address, ipv4 destination address, tcp source port,
+# tcp destination port.
+
+die()
+{
+	echo "error:$1"
+	exit -1
+}
+
+#md_off is (hdrfieldid - 1) * 2
+headerid()
+{
+	echo $((($1 - 1)*2))
+}
+
+IP="/mnt/p4tc-iproute2/ip/ip"
+ipcmd() {
+# -j -p enables formatted json print in stdout
+	echo "Executing \`$IP -j -p $@\`" | fold -w 80
+	$IP -j -p "$@" || die "command \`$@\` failed."
+	echo "---------------------------------------------------------------"
+}
+
+#Extraction definition per header. Values (addoff local offsets)
+ipcmd parser create metadata-rule name md.redirect_l2.dstAddr	\
+		type bit-offset						    		\
+		md-off $(headerid 1)	\
+		addoff 0
+
+ipcmd parser create metadata-rule name md.redirect_l2.srcAddr	\
+		type bit-offset			    	            	\
+		md-off $(headerid 2)				                    	\
+		addoff 48
+
+ipcmd parser create metadata-rule name md.redirect_l2.etherType\
+		type bit-offset			    	            	\
+		md-off $(headerid 3)				                    	\
+		addoff 96
+
+# Creates a metalist object to be associated with a parse node. 
+ipcmd parser create metalist name mdl.redirect_l2eth	\
+		md.rule md.redirect_l2.dstAddr					\
+		md.rule md.redirect_l2.srcAddr					\
+		md.rule md.redirect_l2.etherType
+
+# Creates a parse nodes. Contains header size and how to redirect_l2ulate next header
+ipcmd parser create node name node.ether	\
+		min-hdr-length 14					\
+		nxt.field-off 12					\
+		nxt.field-len 2						\
+		metalist mdl.redirect_l2eth
+
+# Creates a parser object and specifies starting node
+ipcmd parser create parser name redirect_l2_parser \
+		metametasize 22						\
+		rootnode node.ether \
+		flags all-debug-logs-disabled
