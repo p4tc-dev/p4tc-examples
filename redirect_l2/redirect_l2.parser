@@ -19,7 +19,7 @@ headerid()
 	echo $((($1 - 1)*2))
 }
 
-IP="/mnt/p4tc-iproute2/ip/ip"
+IP="ip"
 ipcmd() {
 # -j -p enables formatted json print in stdout
 	echo "Executing \`$IP -j -p $@\`" | fold -w 80
